@@ -345,8 +345,8 @@ class MoVE_GhostModule(nn.Module):
         return out
 
 
-class ESAAM(nn.Module):
-    """Efficient spatial aggregation attention module.
+class DualAxisAggAttn(nn.Module):
+    """Efficient dual-axis aggregation attention module.DAANet的基本模块
         YOLO113n summary: 166 layers, 2,555,428 parameters, 0 gradients, 6.6 GFLOPs
                      Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100%|██████████| 39/39 [00:11<00:00,  3.29it/s]
                        all       4952      12032      0.808      0.735      0.816      0.617
@@ -468,7 +468,7 @@ class ESAAM(nn.Module):
 #         else:
 #             self.conv = Conv(in_channels, out_channels, k=1, act=True)
 
-#         self.spatial_attn = ESAAM(out_channels, out_channels)
+#         self.spatial_attn = DualAxisAggAttn(out_channels, out_channels)
 
 #         self.norm1 = nn.GroupNorm(1, out_channels)
 #         self.norm2 = nn.GroupNorm(1, out_channels)
@@ -509,7 +509,7 @@ class TransMoVE(nn.Module):
 
         # 注意力子层
         # --------------------------------------------------------------
-        self.spatial_attn = ESAAM(out_channels, out_channels)
+        self.spatial_attn = DualAxisAggAttn(out_channels, out_channels)
 
         # ELAN结构
         # ---------------------------------------------------------------
@@ -608,7 +608,7 @@ Results saved to runs/yolo11_coco/113n2
 
         # 注意力子层
         # --------------------------------------------------------------
-        self.spatial_attn = ESAAM(out_channels, out_channels)
+        self.spatial_attn = DualAxisAggAttn(out_channels, out_channels)
 
         # ELAN结构
         # ---------------------------------------------------------------
