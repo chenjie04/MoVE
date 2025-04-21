@@ -182,3 +182,4 @@ wandb/
 deepseek_v3_moe_note.py
 net.txt
 tmp_code.py
+.github/
