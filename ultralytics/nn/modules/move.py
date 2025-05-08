@@ -396,6 +396,10 @@ class DualAxisAggAttn(nn.Module):
             ),
             Conv(c1=middle_channels, c2=middle_channels, k=1, act=True),
         )
+        # self.conv_W = Conv(
+        #     c1=middle_channels, c2=middle_channels, k=3, g=1, act=True
+        # )
+
         self.attn_H = Conv(c1=middle_channels, c2=1, k=1, act=True)
         self.conv_H = nn.Sequential(
             Conv(
@@ -403,6 +407,9 @@ class DualAxisAggAttn(nn.Module):
             ),
             Conv(c1=middle_channels, c2=middle_channels, k=1, act=True),
         )
+        # self.conv_H = Conv(
+        #     c1=middle_channels, c2=middle_channels, k=3, g=1, act=True
+        # )
 
         self.final_conv = Conv(
             c1=final_conv_in_channels, c2=out_channels, k=1, act=True
@@ -418,20 +425,25 @@ class DualAxisAggAttn(nn.Module):
         x_short = self.short_conv(x)
         x_main = self.main_conv(x)
 
+        # 横向选择性聚合全局上下文信息
         logits_W = self.attn_W(x_main)
         context_scores_W = F.softmax(logits_W, dim=-1)
         x_plus_W = x_main + (x_main * context_scores_W).sum(-1, keepdim=True).expand_as(
             x_main
         )
+        # 信息过滤
         x_plus_W = self.conv_W(x_plus_W)
 
+        # 纵向选择性聚合全局左右上下文信息
         logits_H = self.attn_H(x_plus_W)
         context_scores_H = F.softmax(logits_H, dim=-2)
         x_plus_WH = x_plus_W + (x_plus_W * context_scores_H).sum(
             -2, keepdim=True
         ).expand_as(x_plus_W)
+        # 信息过滤
         x_plus_WH = self.conv_H(x_plus_WH)
 
+        # 多路径信息融合
         x_final = torch.cat((x_plus_WH, x_plus_W, x_main, x_short), dim=1)
 
         return self.final_conv(x_final) + residual_final
@@ -493,108 +505,109 @@ class DualAxisAggAttn(nn.Module):
 #         return out
 
 
+# class TransMoVE_gamma(nn.Module):
+#     """采用ELAN结构, 202504231537 相差0.3,效果不理想
+
+#     """
+
+#     def __init__(
+#         self,
+#         in_channels: int,
+#         out_channels: int,
+#         num_experts: int = 9,
+#         kernel_size: int = 3,
+#     ):
+#         super().__init__()
+
+#         # 注意力子层
+#         # --------------------------------------------------------------
+#         self.spatial_attn = DualAxisAggAttn(out_channels, out_channels)
+
+#         # ELAN结构
+#         # ---------------------------------------------------------------
+#         num_blocks = 2
+#         num_in_block = 1
+#         middle_ratio = 0.5
+
+#         self.num_blocks = num_blocks
+
+#         middle_channels = int(out_channels * middle_ratio)
+#         block_channels = int(out_channels * middle_ratio)
+#         self.main_conv = Conv(c1=in_channels, c2=middle_channels, k=1, act=True)
+#         self.short_conv = Conv(c1=in_channels, c2=middle_channels, k=1, act=True)
+
+#         self.blocks = nn.ModuleList()
+#         for _ in range(num_blocks):
+#             if num_in_block == 1:
+#                 internal_block = MoVE_GhostModule(
+#                     in_channels=middle_channels,
+#                     out_channels=block_channels,
+#                     num_experts=num_experts,
+#                     kernel_size=kernel_size,
+#                 )
+#             else:
+#                 internal_block = []
+#                 for _ in range(num_in_block):
+#                     internal_block.append(
+#                         MoVE_GhostModule(
+#                             in_channels=middle_channels,
+#                             out_channels=block_channels,
+#                             num_experts=num_experts,
+#                             kernel_size=kernel_size,
+#                         )
+#                     )
+#                 internal_block = nn.Sequential(*internal_block)
+
+#             self.blocks.append(internal_block)
+
+#         final_conv_in_channels = (
+#             num_blocks * block_channels + int(out_channels * middle_ratio) * 2
+#         )
+#         self.final_conv = Conv(
+#             c1=final_conv_in_channels, c2=out_channels, k=1, act=True
+#         )
+
+#         self.gamma_attn = nn.Parameter(torch.ones(out_channels), requires_grad=True)
+#         self.gamma_elan = nn.Parameter(torch.ones(out_channels), requires_grad=True)
+
+#     def forward(self, x: torch.Tensor) -> torch.Tensor:
+
+
+#         # 注意力子层
+#         residual = x
+#         x = residual + self.spatial_attn(x) * self.gamma_attn.view(-1, len(self.gamma_attn), 1, 1)
+
+#         # ELAN子层
+#         residual = x
+#         x_short = self.short_conv(x)
+#         x_main = self.main_conv(x)
+#         block_outs = []
+#         x_block = x_main
+#         for block in self.blocks:
+#             x_block = block(x_block)
+#             block_outs.append(x_block)
+#         x_final = torch.cat((*block_outs[::-1], x_main, x_short), dim=1)
+#         return residual + self.final_conv(x_final) * self.gamma_elan.view(-1, len(self.gamma_elan), 1, 1)
+
+
 class TransMoVE(nn.Module):
     """采用ELAN结构
-    
-    """
-
-    def __init__(
-        self,
-        in_channels: int,
-        out_channels: int,
-        num_experts: int = 9,
-        kernel_size: int = 3,
-    ):
-        super().__init__()
-
-        # 注意力子层
-        # --------------------------------------------------------------
-        self.spatial_attn = DualAxisAggAttn(out_channels, out_channels)
-
-        # ELAN结构
-        # ---------------------------------------------------------------
-        num_blocks = 2
-        num_in_block = 1
-        middle_ratio = 0.5
-
-        self.num_blocks = num_blocks
-
-        middle_channels = int(out_channels * middle_ratio)
-        block_channels = int(out_channels * middle_ratio)
-        self.main_conv = Conv(c1=in_channels, c2=middle_channels, k=1, act=True)
-        self.short_conv = Conv(c1=in_channels, c2=middle_channels, k=1, act=True)
-
-        self.blocks = nn.ModuleList()
-        for _ in range(num_blocks):
-            if num_in_block == 1:
-                internal_block = MoVE_GhostModule(
-                    in_channels=middle_channels,
-                    out_channels=block_channels,
-                    num_experts=num_experts,
-                    kernel_size=kernel_size,
-                )
-            else:
-                internal_block = []
-                for _ in range(num_in_block):
-                    internal_block.append(
-                        MoVE_GhostModule(
-                            in_channels=middle_channels,
-                            out_channels=block_channels,
-                            num_experts=num_experts,
-                            kernel_size=kernel_size,
-                        )
-                    )
-                internal_block = nn.Sequential(*internal_block)
-
-            self.blocks.append(internal_block)
-
-        final_conv_in_channels = (
-            num_blocks * block_channels + int(out_channels * middle_ratio) * 2
-        )
-        self.final_conv = Conv(
-            c1=final_conv_in_channels, c2=out_channels, k=1, act=True
-        )
-
-        self.gamma_attn = nn.Parameter(0.01 * torch.ones(out_channels), requires_grad=True)
-        self.gamma_elan = nn.Parameter(0.01 * torch.ones(out_channels), requires_grad=True)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-
-
-        # 注意力子层
-        residual = x
-        x = residual + self.spatial_attn(x) * self.gamma_attn.view(-1, len(self.gamma_attn), 1, 1)
-
-        # ELAN子层
-        residual = x
-        x_short = self.short_conv(x)
-        x_main = self.main_conv(x)
-        block_outs = []
-        x_block = x_main
-        for block in self.blocks:
-            x_block = block(x_block)
-            block_outs.append(x_block)
-        x_final = torch.cat((*block_outs[::-1], x_main, x_short), dim=1)
-        return residual + self.final_conv(x_final) * self.gamma_elan.view(-1, len(self.gamma_elan), 1, 1) 
-
-
-class TransMoVE_20250420(nn.Module):
-    """采用ELAN结构
-    COCO
+        COCO
+     YOLO113n summary: 343 layers, 2,609,872 parameters, 2,609,856 gradients, 7.0 GFLOPs
      Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.406
- Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.568
- Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = 0.436
- Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.209
- Average Precision  (AP) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.446
- Average Precision  (AP) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.589
- Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=  1 ] = 0.329
- Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets= 10 ] = 0.546
- Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.602
- Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.380
- Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.666
- Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.789
-Results saved to runs/yolo11_coco/113n2
-   
+     Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.568
+     Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = 0.436
+     Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.209
+     Average Precision  (AP) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.446
+     Average Precision  (AP) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.589
+     Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=  1 ] = 0.329
+     Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets= 10 ] = 0.546
+     Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.602
+     Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.380
+     Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.666
+     Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.789
+    Results saved to runs/yolo11_coco/113n2
+
     """
 
     def __init__(
@@ -609,6 +622,22 @@ Results saved to runs/yolo11_coco/113n2
         # 注意力子层
         # --------------------------------------------------------------
         self.spatial_attn = DualAxisAggAttn(out_channels, out_channels)
+
+        # Area  Attention
+        # YOLO113n summary: 375 layers, 2,811,932 parameters, 2,811,916 gradients, 7.4 GFLOPs
+        # ---------------------------------------------------------------
+        # print(f"TransMoVE: {in_channels} -> {out_channels}")
+        # from ultralytics.nn.modules.block import A2C2f, C3k2
+        # if in_channels > 64: #
+        #     self.spatial_attn = A2C2f(c1=in_channels, c2=out_channels)
+        # else:
+        #     self.spatial_attn = C3k2(c1=in_channels, c2=out_channels,c3k=False, e=0.25)
+
+        # Criss Cross Attention
+        # YOLO113n summary: 287 layers, 2,415,808 parameters, 2,415,792 gradients, 6.6 GFLOPs
+        # ---------------------------------------------------
+        # from ultralytics.nn.modules.criss_cross_attn import CrissCrossAttention
+        # self.spatial_attn = CrissCrossAttention(in_channels)
 
         # ELAN结构
         # ---------------------------------------------------------------
@@ -632,11 +661,23 @@ Results saved to runs/yolo11_coco/113n2
                     num_experts=num_experts,
                     kernel_size=kernel_size,
                 )
+                # internal_block = GhostModule(
+                #     in_channels=middle_channels,
+                #     out_channels=block_channels,
+                #     num_experts=num_experts,
+                #     kernel_size=kernel_size,
+                # )
             else:
                 internal_block = []
                 for _ in range(num_in_block):
                     internal_block.append(
-                        MoVE_GhostModule(
+                        # MoVE_GhostModule(
+                        #     in_channels=middle_channels,
+                        #     out_channels=block_channels,
+                        #     num_experts=num_experts,
+                        #     kernel_size=kernel_size,
+                        # )
+                        GhostModule(
                             in_channels=middle_channels,
                             out_channels=block_channels,
                             num_experts=num_experts,
@@ -654,9 +695,7 @@ Results saved to runs/yolo11_coco/113n2
             c1=final_conv_in_channels, c2=out_channels, k=1, act=True
         )
 
-
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-
 
         # 注意力子层
         residual = x

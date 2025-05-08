@@ -19,13 +19,13 @@ backbone:
   # [from, repeats, module, args]              特征图大小
   - [-1, 1, Conv, [64, 3, 2]] # 0-P1/2         320
   - [-1, 1, Conv, [128, 3, 2]] # 1-P2/4        160
-  - [-1, 2, TransMoVE, [128, 16, 3]]
+  - [-1, 2, TransMoVE, [128, 25, 3]]
   - [-1, 1, Conv, [256, 3, 2]] # 3-P3/8        80
-  - [-1, 2, TransMoVE, [256, 16, 3]]
+  - [-1, 2, TransMoVE, [256, 25, 3]]
   - [-1, 1, SCDown, [512, 3, 2]] # 5-P4/16     40
-  - [-1, 2, TransMoVE, [512, 16, 3]]
+  - [-1, 2, TransMoVE, [512, 25, 3]]
   - [-1, 1, SCDown, [1024, 3, 2]] # 7-P5/32    20
-  - [-1, 2, TransMoVE, [1024, 16, 3]]
+  - [-1, 2, TransMoVE, [1024, 25, 3]]
   - [-1, 1, SPPF, [1024, 5]] # 9
   - [-1, 2, C2PSA, [1024]] # 10
 
@@ -33,19 +33,120 @@ backbone:
 head:
   - [-1, 1, nn.Upsample, [None, 2, "nearest"]]
   - [[-1, 6], 1, Concat, [1]] # cat backbone P4
-  - [-1, 2, A2C2f, [512, False, -1]] # 11
+  - [-1, 2, A2C2f, [512, False, -1]] # 13
 
   - [-1, 1, nn.Upsample, [None, 2, "nearest"]]
   - [[-1, 4], 1, Concat, [1]] # cat backbone P3
-  - [-1, 2, A2C2f, [256, False, -1]] # 14
+  - [-1, 2, A2C2f, [256, False, -1]] # 16
 
   - [-1, 1, Conv, [256, 3, 2]]
   - [[-1, 13], 1, Concat, [1]] # cat head P4
-  - [-1, 2, A2C2f, [512, False, -1]] # 17
+  - [-1, 2, A2C2f, [512, False, -1]] # 19
 
   - [-1, 1, Conv, [512, 3, 2]]
   - [[-1, 10], 1, Concat, [1]] # cat head P5
-  - [-1, 2, C3k2, [1024, True]] # 20 (P5/32-large)
+  - [-1, 2, C3k2, [1024, True]] # 22 (P5/32-large)
 
   - [[16, 19, 22], 1, Detect, [nc]] # Detect(P3, P4, P5)
 
+
+# """
+# YOLO 12n 第一次coco舒颜
+#  Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.405
+#  Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.566
+#  Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = 0.439
+#  Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.202
+#  Average Precision  (AP) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.450
+#  Average Precision  (AP) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.583
+#  Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=  1 ] = 0.331
+#  Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets= 10 ] = 0.548
+#  Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.602
+#  Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.374
+#  Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.667
+#  Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.791
+# Results saved to runs/yolo12_coco/123n2
+# """
+
+# VOC 实验
+# YOLO123n summary (fused): 229 layers, 2,526,740 parameters, 0 gradients, 6.4 GFLOPs
+#                  Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100%|██████████| 39/39 [00:12<00:00,  3.02it/s]
+#                    all       4952      12032      0.819      0.721      0.811      0.615
+#              aeroplane        204        285      0.913      0.769      0.883      0.673
+#                bicycle        239        337      0.914      0.834       0.91        0.7
+#                   bird        282        459      0.814       0.66      0.766      0.545
+#                   boat        172        263      0.787      0.616       0.73      0.471
+#                 bottle        212        469      0.885      0.478      0.674      0.462
+#                    bus        174        213      0.833      0.808      0.857      0.753
+#                    car        721       1201      0.895      0.816       0.91      0.734
+#                    cat        322        358      0.864      0.796      0.876      0.717
+#                  chair        417        756      0.771      0.474      0.634      0.434
+#                    cow        127        244      0.701      0.816       0.85      0.658
+#            diningtable        190        206      0.718      0.723      0.787      0.611
+#                    dog        418        489      0.821      0.748      0.853      0.669
+#                  horse        274        348      0.866      0.876       0.92      0.731
+#              motorbike        222        325      0.862      0.822      0.883      0.648
+#                 person       2007       4528      0.904       0.75      0.873      0.615
+#            pottedplant        224        480      0.714       0.41      0.544      0.307
+#                  sheep         97        242      0.756      0.773      0.804       0.61
+#                   sofa        223        239      0.644      0.791      0.797       0.67
+#                  train        259        282      0.876      0.833      0.883      0.691
+#              tvmonitor        229        308      0.844      0.627      0.786      0.602
+# Speed: 0.1ms preprocess, 1.5ms inference, 0.0ms loss, 0.2ms postprocess per image
+# Results saved to runs/yolo12_VOC/123n5
+
+
+# 将第4个下采样层从SCDown改为Conv 效果反而下降了，草！
+# YOLO123n summary: 370 layers, 2,631,472 parameters, 2,631,456 gradients, 6.9 GFLOPs
+# YOLO123n summary (fused): 227 layers, 2,590,996 parameters, 0 gradients, 6.5 GFLOPs
+#                  Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100%|██████████| 39/39 [00:12<00:00,  3.12it/s]
+#                    all       4952      12032      0.807      0.728       0.81      0.613
+#              aeroplane        204        285      0.894        0.8      0.878      0.658
+#                bicycle        239        337      0.885      0.803        0.9      0.691
+#                   bird        282        459      0.834      0.658       0.78      0.556
+#                   boat        172        263      0.733      0.669      0.725      0.482
+#                 bottle        212        469      0.885      0.542      0.696      0.466
+#                    bus        174        213      0.859      0.793      0.858      0.761
+#                    car        721       1201       0.88       0.83      0.913      0.738
+#                    cat        322        358      0.833      0.818      0.883      0.701
+#                  chair        417        756      0.734      0.492       0.62      0.425
+#                    cow        127        244      0.719      0.799      0.839      0.636
+#            diningtable        190        206       0.71      0.718      0.777      0.609
+#                    dog        418        489      0.778      0.771      0.845      0.658
+#                  horse        274        348      0.834      0.882      0.913      0.736
+#              motorbike        222        325      0.872      0.785      0.876      0.662
+#                 person       2007       4528      0.898      0.751      0.871      0.613
+#            pottedplant        224        480      0.685      0.381       0.52       0.29
+#                  sheep         97        242      0.765      0.752      0.825      0.622
+#                   sofa        223        239      0.608      0.787      0.779      0.646
+#                  train        259        282      0.866      0.858      0.895       0.69
+#              tvmonitor        229        308      0.864      0.662      0.798      0.616
+# Speed: 0.1ms preprocess, 1.5ms inference, 0.0ms loss, 0.2ms postprocess per image
+# Results saved to runs/yolo12_VOC/123n6
+
+# 将专家数量从16增加到25
+# YOLO123n summary: 373 layers, 2,598,664 parameters, 2,598,648 gradients, 6.9 GFLOPs
+# YOLO123n summary (fused): 229 layers, 2,558,060 parameters, 0 gradients, 6.6 GFLOPs                                                                                 
+#                  Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100%|██████████| 39/39 [00:14<00:00,  2.74it/s]                           
+#                    all       4952      12032      0.813      0.732      0.814      0.618                                                                            
+#              aeroplane        204        285      0.921      0.821      0.897      0.691                                                                            
+#                bicycle        239        337      0.908      0.849      0.921      0.711                                                                            
+#                   bird        282        459      0.788      0.689      0.775      0.536                                                                            
+#                   boat        172        263      0.751      0.669       0.73      0.469                                                                            
+#                 bottle        212        469      0.872      0.493      0.675      0.457                                                                            
+#                    bus        174        213      0.837      0.793      0.857      0.768                                                                            
+#                    car        721       1201      0.883      0.842      0.912      0.737                                                                            
+#                    cat        322        358      0.839      0.821      0.885      0.719                                                                            
+#                  chair        417        756      0.775      0.484      0.623      0.421                                                                            
+#                    cow        127        244      0.741      0.811      0.852      0.652                                                                            
+#            diningtable        190        206       0.76      0.665      0.778      0.603
+#                    dog        418        489      0.801      0.785      0.863      0.675
+#                  horse        274        348      0.845      0.871      0.921      0.743
+#              motorbike        222        325       0.85      0.843      0.896      0.658
+#                 person       2007       4528      0.901      0.761      0.878      0.615
+#            pottedplant        224        480      0.683      0.419      0.522      0.296
+#                  sheep         97        242      0.762      0.744      0.813      0.618                                                                                  
+#                   sofa        223        239       0.63      0.762      0.774       0.65                                                                                  
+#                  train        259        282      0.876       0.84      0.894      0.703                                                                                  
+#              tvmonitor        229        308       0.84      0.667      0.804      0.631                                                                                  
+# Speed: 0.1ms preprocess, 1.8ms inference, 0.0ms loss, 0.2ms postprocess per image    
+# Results saved to runs/yolo12_VOC/123n7  
